@@ -5,11 +5,37 @@ import type { ChipDefinition, PinCapability } from '@/types/chip'
 export const useChipStore = defineStore('chip', () => {
   // State
   const currentChip = ref<ChipDefinition | null>(null)
+  const pinConfigurations = ref<Record<string, string>>({}) // Key: PinName, Value: SelectedFunction
   const isLoaded = computed(() => !!currentChip.value)
 
   // Actions
   function loadChip(data: ChipDefinition) {
     currentChip.value = data
+    pinConfigurations.value = {} // 重置配置
+  }
+
+  function setPinFunction(pinName: string, func: string) {
+    if (!currentChip.value) return
+    
+    // 如果选择的是默认功能或空，则移除配置
+    if (!func) {
+      const { [pinName]: _, ...rest } = pinConfigurations.value
+      pinConfigurations.value = rest
+      return
+    }
+
+    // 检查该引脚是否支持该功能
+    const supported = getPinFunctions(pinName)
+    if (supported.includes(func)) {
+      pinConfigurations.value = {
+        ...pinConfigurations.value,
+        [pinName]: func
+      }
+    }
+  }
+
+  function getPinConfiguration(pinName: string): string | undefined {
+    return pinConfigurations.value[pinName]
   }
 
   /**
@@ -43,8 +69,11 @@ export const useChipStore = defineStore('chip', () => {
     currentChip,
     isLoaded,
     physicalPins,
+    pinConfigurations,
     loadChip,
     getPinFunctions,
-    getPinType
+    getPinType,
+    setPinFunction,
+    getPinConfiguration
   }
 })

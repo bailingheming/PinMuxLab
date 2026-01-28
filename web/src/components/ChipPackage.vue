@@ -6,11 +6,17 @@ import { calculateQuadLayout, type RenderedPin } from '@/utils/packageLayout'
 const props = defineProps<{
   packageInfo: PackageInfo
   chipMeta?: ChipMeta
+  pinConfigurations?: Record<string, string>
 }>()
 
 const emit = defineEmits<{
   (e: 'pin-click', pin: RenderedPin): void
 }>()
+
+// 判断引脚是否已配置
+function isPinConfigured(pinName: string): boolean {
+  return !!props.pinConfigurations?.[pinName]
+}
 
 // 缩放控制
 const scale = ref(1)
@@ -19,11 +25,16 @@ const translateX = ref(0)
 const translateY = ref(0)
 const lastX = ref(0)
 const lastY = ref(0)
+const containerRef = ref<HTMLElement | null>(null)
 
 function onWheel(e: WheelEvent) {
   e.preventDefault()
+  
   const delta = e.deltaY > 0 ? 0.9 : 1.1
-  scale.value = Math.min(Math.max(0.5, scale.value * delta), 5) // 限制缩放范围 0.5x ~ 5x
+  const newScale = Math.min(Math.max(0.5, scale.value * delta), 10) // 限制缩放范围 0.5x ~ 10x
+
+  // 直接更新缩放，不再计算鼠标偏移，实现中心缩放
+  scale.value = newScale
 }
 
 function onMouseDown(e: MouseEvent) {
@@ -46,6 +57,20 @@ function onMouseUp() {
   isDragging.value = false
 }
 
+function zoomIn() {
+  scale.value = Math.min(scale.value * 1.2, 10)
+}
+
+function zoomOut() {
+  scale.value = Math.max(scale.value / 1.2, 0.5)
+}
+
+function resetZoom() {
+  scale.value = 1
+  translateX.value = 0
+  translateY.value = 0
+}
+
 // 计算布局
 const layout = computed(() => {
   if (!props.packageInfo) return null
@@ -61,6 +86,7 @@ function handlePinClick(pin: RenderedPin) {
 <template>
   <div 
     class="chip-package-container" 
+    ref="containerRef"
     v-if="layout"
     @wheel="onWheel"
     @mousedown="onMouseDown"
@@ -106,7 +132,7 @@ function handlePinClick(pin: RenderedPin) {
       </g>
 
       <!-- 引脚 -->
-      <g v-for="pin in layout.pins" :key="pin.number" class="pin-group" @click="handlePinClick(pin)">
+      <g v-for="pin in layout.pins" :key="pin.number" class="pin-group" @click.stop="handlePinClick(pin)">
         <!-- 引脚形状 -->
         <rect
           :x="pin.x"
@@ -114,6 +140,7 @@ function handlePinClick(pin: RenderedPin) {
           :width="pin.width"
           :height="pin.height"
           class="pin-shape"
+          :class="{ 'is-configured': isPinConfigured(pin.name) }"
         />
         
         <!-- 引脚名称 -->
@@ -128,6 +155,13 @@ function handlePinClick(pin: RenderedPin) {
         </text>
       </g>
     </svg>
+
+    <!-- 缩放控件 -->
+    <div class="zoom-controls">
+      <button @click.stop="zoomIn" title="放大">+</button>
+      <button @click.stop="resetZoom" title="重置">⟲</button>
+      <button @click.stop="zoomOut" title="缩小">-</button>
+    </div>
   </div>
 </template>
 
@@ -141,6 +175,40 @@ function handlePinClick(pin: RenderedPin) {
   overflow: hidden; /* 防止 SVG 拖拽出边界 */
   background-color: #f0f0f0; /* 给背景加个淡色以便区分 */
   cursor: grab; /* 提示可拖拽 */
+  position: relative; /* 为绝对定位的控件提供锚点 */
+}
+
+.zoom-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: white;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.zoom-controls button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  transition: all 0.2s;
+}
+
+.zoom-controls button:hover {
+  background: #f0f0f0;
+  color: #333;
 }
 
 .chip-package-container:active {
@@ -189,10 +257,16 @@ function handlePinClick(pin: RenderedPin) {
   fill: #b0b0b0; /* 金属银色 */
   stroke: #666;
   stroke-width: 1;
+  transition: fill 0.3s;
+}
+
+.pin-shape.is-configured {
+  fill: #42b883; /* 配置后变为绿色 */
+  stroke: #2c3e50;
 }
 
 .pin-group:hover .pin-shape {
-  fill: #42b883; /* Vue Green 高亮 */
+  fill: #66cc99; /* Hover 时稍微亮一点 */
 }
 
 .pin-label {
