@@ -12,14 +12,8 @@ export function exportConfigurationToCSV(
 
   // 遍历所有物理引脚，确保顺序（按物理编号排序可能更好，或者按引脚名）
   // 这里我们按物理编号排序
-  const sortedPins = chip.package.pins.sort((a, b) => {
-    // 尝试提取数字部分进行排序， fallback 到字符串比较
-    const numA = parseInt(a.number)
-    const numB = parseInt(b.number)
-    if (!isNaN(numA) && !isNaN(numB)) {
-      return numA - numB
-    }
-    return a.number.localeCompare(b.number)
+  const sortedPins = [...chip.package.pins].sort((a, b) => {
+    return a.number - b.number
   })
 
   for (const pin of sortedPins) {
